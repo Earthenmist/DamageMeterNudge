@@ -4,7 +4,7 @@
 ## Author: Lanni Alonsus
 ## Version: 1.2.0
 
-## IconTexture: Interface\AddOns\DamageMeterNudge\Media\DMN-Nudge
+## IconTexture: Interface\AddOns\DamageMeterNudge\Media\DM-Nudge
 ## Category: Unit Frames
 ## X-Curse-Project-ID: 1460200
 ## X-Wago-ID: b6Xe5jKp
