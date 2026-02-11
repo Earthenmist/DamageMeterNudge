@@ -1,0 +1,7 @@
+## Interface: 120001
+## Title: Damage Meter Nudge
+## Notes: Unlocks Blizzard's Damage Meter windows so Edit Mode can move them closer to screen edges. /dmunlock
+## Author: Lanni Alonsus
+## Version: 1.2.0
+
+DamageMeterNudge.lua
