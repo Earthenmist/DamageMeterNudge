@@ -1,0 +1,120 @@
+diff --git a/DamageMeterNudge.lua b/DamageMeterNudge.lua
+index 3b2c1aa..c4c0d18 100644
+--- a/DamageMeterNudge.lua
++++ b/DamageMeterNudge.lua
+@@ -1,7 +1,45 @@
+ local addonName, addon = ...
+ 
+ local DMN = CreateFrame("Frame")
+ DMN:RegisterEvent("ADDON_LOADED")
+ DMN:RegisterEvent("PLAYER_LOGIN")
++DMN:RegisterEvent("PLAYER_REGEN_ENABLED")
++DMN:RegisterEvent("CHALLENGE_MODE_COMPLETED")
++
++DMN.pendingApply = false
++
++local function IsMythicPlusActive()
++    if C_ChallengeMode and C_ChallengeMode.IsChallengeModeActive then
++        return C_ChallengeMode.IsChallengeModeActive()
++    end
++    return false
++end
++
++local function CanApplyNow()
++    -- Midnight restrictions:
++    -- 1) Don't do anything during combat
++    -- 2) Don't do anything during an active Mythic+ run
++    if InCombatLockdown() then
++        return false
++    end
++    if IsMythicPlusActive() then
++        return false
++    end
++    return true
++end
++
++local function SafeSetClampedToScreen(frame, clamped)
++    -- UIParent:SetClampedToScreen() is protected in combat and causes action blocked.
++    -- Also: we should never be touching UIParent anyway.
++    if not frame or frame == UIParent then
++        return
++    end
++    if frame.SetClampedToScreen then
++        frame:SetClampedToScreen(clamped)
++    end
++end
+ 
+ local function FindDamageMeterFrames()
+     local results = {}
+@@ -18,38 +56,72 @@ local function FindDamageMeterFrames()
+     return results
+ end
+ 
+-local function ApplyUnlockState(unlocked)
++local function ApplyUnlockState(unlocked)
+     local frames = FindDamageMeterFrames()
+ 
+     for _, f in ipairs(frames) do
+-        f:SetClampedToScreen(true)
++        -- Never clamp UIParent (prevents ADDON_ACTION_BLOCKED)
++        SafeSetClampedToScreen(f, true)
+ 
+         if unlocked then
+             f:SetMovable(true)
+             f:EnableMouse(true)
+             f:RegisterForDrag("LeftButton")
+             f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+             f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+         else
+             f:SetMovable(false)
+             f:EnableMouse(false)
+             f:RegisterForDrag()
+             f:SetScript("OnDragStart", nil)
+             f:SetScript("OnDragStop", nil)
+         end
+     end
+ end
+ 
+ local function TryApplyUnlockState(unlocked)
+-    ApplyUnlockState(unlocked)
++    if not CanApplyNow() then
++        DMN.pendingApply = true
++        DMN.pendingUnlocked = unlocked
++        return
++    end
++
++    DMN.pendingApply = false
++    ApplyUnlockState(unlocked)
+ end
+ 
+ function DMN:ADDON_LOADED(name)
+     if name ~= addonName then return end
+ 
+     DamageMeterNudgeDB = DamageMeterNudgeDB or {
+         unlocked = false
+     }
+ end
+ 
+ function DMN:PLAYER_LOGIN()
+     TryApplyUnlockState(DamageMeterNudgeDB.unlocked)
+ end
+ 
++function DMN:PLAYER_REGEN_ENABLED()
++    if DMN.pendingApply then
++        -- Still don't apply if we're inside an active M+ run
++        TryApplyUnlockState(DMN.pendingUnlocked)
++    end
++end
++
++function DMN:CHALLENGE_MODE_COMPLETED()
++    if DMN.pendingApply then
++        -- M+ ended; still respect combat lockdown
++        TryApplyUnlockState(DMN.pendingUnlocked)
++    end
++end
++
+ DMN:SetScript("OnEvent", function(self, event, ...)
+     if self[event] then
+         self[event](self, ...)
+     end
+ end)
