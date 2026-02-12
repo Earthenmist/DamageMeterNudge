@@ -1,5 +1,5 @@
 -- DamageMeterNudge (Minimal Unlock)
--- v1.2.0: Removes all nudging/anchoring to avoid breaking Edit Mode sizing.
+-- v1.2.2: Removes all nudging/anchoring to avoid breaking Edit Mode sizing.
 -- This addon now simply UNLOCKS Blizzard's Damage Meter windows so Edit Mode can move them closer to screen edges.
 
 local ADDON_NAME = ...
@@ -13,6 +13,20 @@ end
 -- Tracks whether the user asked for clamping (rare; default is unlocked)
 local clampEnabled = false
 
+-- Midnight combat/instance restrictions:
+-- Do NOT attempt to change protected frame state during combat or while a Mythic+ run is active.
+local pendingUnlock = false
+
+local function IsMythicPlusActive()
+    return C_ChallengeMode and C_ChallengeMode.IsChallengeModeActive and C_ChallengeMode.IsChallengeModeActive()
+end
+
+local function CanApplyNow()
+    if InCombatLockdown and InCombatLockdown() then return false end
+    if IsMythicPlusActive() then return false end
+    return true
+end
+
 local function SetInsets(frame, left, right, top, bottom)
     if frame.SetClampRectInsets then
         frame:SetClampRectInsets(left, right, top, bottom)
@@ -23,7 +37,7 @@ local function SetInsets(frame, left, right, top, bottom)
 end
 
 local function ApplyClamp(frame, enabled)
-    if not frame then return end
+    if not frame or frame == UIParent then return end
 
     if frame.SetClampedToScreen then
         frame:SetClampedToScreen(enabled and true or false)
@@ -46,7 +60,7 @@ local function ApplyClampToChain(frame, enabled)
     -- Also apply to parent chain because Blizzard sometimes clamps higher up.
     local p = frame:GetParent()
     local i = 0
-    while p and i < 12 do
+    while p and p ~= UIParent and i < 12 do
         ApplyClamp(p, enabled)
         p = p:GetParent()
         i = i + 1
@@ -91,9 +105,28 @@ local function UnlockSoon()
     C_Timer.After(1.0, UnlockNow)
 end
 
+
+local function QueueUnlock()
+    pendingUnlock = true
+end
+
+local function TryUnlockSoon()
+    if not CanApplyNow() then
+        QueueUnlock()
+        return
+    end
+    pendingUnlock = false
+    UnlockSoon()
+end
+
 -- Slash commands
 SLASH_DMUNLOCK1 = "/dmunlock"
 SlashCmdList.DMUNLOCK = function()
+    if not CanApplyNow() then
+        QueueUnlock()
+        Print(IsMythicPlusActive() and "Queued: will unlock after the Mythic+ run ends." or "Queued: will unlock after combat ends.")
+        return
+    end
     if UnlockNow() then
         Print(clampEnabled and "Clamp is ON (default Blizzard behaviour)." or "Unlocked Damage Meter windows (Edit Mode can move them further).")
     else
@@ -107,11 +140,11 @@ SlashCmdList.DMCLAMP = function(input)
 
     if input == "on" or input == "true" or input == "1" then
         clampEnabled = true
-        UnlockSoon()
+        TryUnlockSoon()
         Print("Clamp: ON")
     elseif input == "off" or input == "false" or input == "0" or input == "" then
         clampEnabled = false
-        UnlockSoon()
+        TryUnlockSoon()
         Print("Clamp: OFF (unlocked)")
     else
         Print("Usage: /dmclamp on|off")
@@ -138,6 +171,20 @@ ev:RegisterEvent("PLAYER_LOGIN")
 ev:RegisterEvent("PLAYER_ENTERING_WORLD")
 ev:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
 ev:RegisterEvent("UI_SCALE_CHANGED")
-ev:SetScript("OnEvent", function()
-    UnlockSoon()
+
+-- Combat + Mythic+ safety gates
+ev:RegisterEvent("PLAYER_REGEN_ENABLED")
+ev:RegisterEvent("CHALLENGE_MODE_COMPLETED")
+ev:RegisterEvent("CHALLENGE_MODE_RESET")
+
+ev:SetScript("OnEvent", function(_, event)
+    if event == "PLAYER_REGEN_ENABLED" or event == "CHALLENGE_MODE_COMPLETED" or event == "CHALLENGE_MODE_RESET" then
+        if pendingUnlock then
+            TryUnlockSoon()
+        end
+        return
+    end
+
+    -- For normal UI refresh/login events, attempt immediately (or queue if blocked)
+    TryUnlockSoon()
 end)
