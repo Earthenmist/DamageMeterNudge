@@ -2,7 +2,7 @@
 ## Title: Damage Meter Nudge
 ## Notes: Unlocks Blizzard's Damage Meter windows so Edit Mode can move them closer to screen edges. /dmunlock
 ## Author: Lanni Alonsus
-## Version: 1.2.0
+## Version: 1.2.1
 
 ## IconTexture: Interface\AddOns\DamageMeterNudge\Media\DM-Nudge
 ## Category: Unit Frames
