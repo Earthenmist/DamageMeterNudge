@@ -1,12 +1,12 @@
-## 🧩 Addon Updates (2026-02-12)
+## 🧩 Addon Updates (2026-04-21)
 
-**Damage Meter Nudge** — v1.2.1  
+**Damage Meter Nudge** — v1.2.2  
 
 **Changes:**  
-- None.
+- Updated toc for WoW 12.0.5 Patch release.
 
 **Fixes:**  
-- Fix: defer unlock changes during combat and active Mythic+
+- None.
 
 **Known issues:**  
 - None currently known.
